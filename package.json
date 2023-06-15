@@ -9,7 +9,9 @@
     "dist"
   ],
   "license": "MIT",
-  "scripts": {},
+  "scripts": {
+    "prepare": "tsc -b"
+  },
   "keywords": [
     "chatbot",
     "koishi",
