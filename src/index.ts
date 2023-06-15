@@ -4,21 +4,21 @@ import { Foo } from './foo'
 
 declare module 'koishi' {
   interface Context {
-    test: TestSerice
+    test: TestService
   }
 }
 
-export class TestSerice extends Service {
+export class TestService extends Service {
   a: string
 
   constructor(ctx: Context) {
     super(ctx, 'test', true)
     ctx.plugin(Foo)
-
-    ctx.command('test').subcommand('.hello').action(({session, args, options}) => {
-      return JSON.stringify({options, args})
+    
+    ctx.before('send', (session) => {
+      if (session.content === '权限不足。') return true
     })
   }
 }
 
-export default TestSerice
+export default TestService
