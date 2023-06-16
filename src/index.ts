@@ -16,6 +16,8 @@ export class TestService extends Service {
 
     const selfSendPrefixLength = config.selfSendPrefix.length
 
+    console.log('Test plugin initializing.')
+
     ctx.plugin(Foo)
     
     // Remove low-authority warning
