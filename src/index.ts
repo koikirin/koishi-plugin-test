@@ -51,7 +51,7 @@ export namespace TestService {
     selfSendPrefix: string
   }
 
-  export const config: Schema<Config> = Schema.object({
+  export const Config: Schema<Config> = Schema.object({
     selfSendPrefix: Schema.string().default('//')
   })
 }
