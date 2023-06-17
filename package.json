@@ -1,7 +1,7 @@
 {
   "name": "@hieuzest/koishi-plugin-test",
   "description": "",
-  "version": "0.0.6",
+  "version": "1.0.0",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [
@@ -17,6 +17,9 @@
     "koishi",
     "plugin"
   ],
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/"
+  },
   "peerDependencies": {
     "koishi": "^4.13.1"
   }

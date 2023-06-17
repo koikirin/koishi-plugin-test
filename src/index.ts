@@ -20,10 +20,10 @@ export class TestService extends Service {
 
     ctx.plugin(Foo)
     
-    // Remove low-authority warning
-    ctx.before('send', (session) => {
-      if (session.content === '权限不足。') return true
-    })
+    ctx.middleware((session, next) => {
+      if (session.content === 'help') return
+      return next()
+    }, true)
 
     // Handle self message
     ctx.guild().on('message', (session) => {
