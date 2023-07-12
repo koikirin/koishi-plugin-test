@@ -1,32 +1,26 @@
-import { } from '@koishijs/plugin-adapter-onebot'
-import { } from '@koishijs/plugin-adapter-kook'
-import { } from '@koishijs/plugin-auth'
-import { } from '@koishijs/plugin-console'
-import { Context, Element, Loader, Logger, Schema, Service, Session, h } from 'koishi'
+import { } from '@hieuzest/koishi-plugin-analytics'
+import { Context, Dict, Element, Loader, Logger, Schema, Service, Session, User, deepEqual, h } from 'koishi'
 
 declare module 'koishi' {
   interface Context {
     test: TestService
     // foo: Foo
   }
+
 }
 
 const logger = new Logger('test')
 
 export class TestService extends Service {
-  static using = ['database']
-  
+
   _findPlugin(name: string, parent: Context): [string, Context, Context] {
     if (!parent) return
     const reg = parent.scope[Loader.kRecord]
     if (!reg) return
     for (const key of Object.getOwnPropertyNames(reg)) {
-      const i1 = key.indexOf('/'), i2 = key.indexOf(':')
+      const i1 = -1, i2 = key.indexOf(':')
       const mkey = key.slice(i1 === -1 ? 0 : i1+1, i2 === i1 ? key.length: i2)
-      // console.log(mkey)
-      // if (mkey === 'group') continue
       if (mkey === name) return [key, parent, reg[key]?.ctx]
-      // console.log(reg[key]?.ctx)
       const res = this._findPlugin(name, reg[key]?.ctx)
       if (res) return res
     }
@@ -43,12 +37,9 @@ export class TestService extends Service {
 
     console.log('Test plugin initializing.')
 
-    // ctx.plugin(Foo)
 
-
-    ctx.middleware((session, next) => {
+    ctx.middleware(async (session, next) => {
       if (session.content === 'help') return
-      // console.log(session)
       return next()
     }, true)
 
@@ -115,17 +106,22 @@ export class TestService extends Service {
 
 
     if (config.fixChannelName) {
-      ctx.guild().middleware(async (session, nect) => {
+      ctx.guild().middleware(async (session, next) => {
         const channel = await session.getChannel()
-        // if (session.channelName && channel.)
+        if (!channel.name) {
+          console.log(session.channelName, session.guildName, session.username)
+
+        }
+        // channel
+        return next()
         
-      })
+      }, true)
     }
 
-    ctx.command('test.real').action((argv) => {
-      const [key, parent, plugin] = this.findPlugin('adapter')??[]
-      console.log(plugin.scope.runtime.ctx['__CHRONO_LAUNCHER__'])
-      return 'Hello!'
+    ctx.command('test.real <arg:number>', {checkUnknown: true, checkArgCount: true})
+      .option('-w', 'www')
+      .action(({session, options, args}) => {
+      return JSON.stringify({options, args})
     })
 
 
@@ -139,9 +135,9 @@ export class TestService extends Service {
       const [key, parent, plugin] = this.findPlugin(name)??[]
       if (!key) return 'Not found'
       ctx.loader.unloadPlugin(parent, key)
-      await ctx.loader.reloadPlugin(parent, key, parent.config)
+      await ctx.loader.reloadPlugin(parent, key, parent.config[key])
       
-      return 'Success' + plugin
+      return 'Success ' + key
     })
 
     // ctx.on('send', (session) => {
