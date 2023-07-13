@@ -22,5 +22,10 @@
   },
   "peerDependencies": {
     "koishi": "^4.13.1"
+  },
+  "koishi": {
+    "service": {
+      "required": ["send"]
+    }
   }
 }

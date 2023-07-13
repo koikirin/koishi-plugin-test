@@ -1,5 +1,7 @@
 import { } from '@hieuzest/koishi-plugin-analytics'
+import { } from '@hieuzest/koishi-plugin-send'
 import { Context, Dict, Element, Loader, Logger, Schema, Service, Session, User, deepEqual, h } from 'koishi'
+// import { Foo } from './foo'
 
 declare module 'koishi' {
   interface Context {
@@ -12,6 +14,7 @@ declare module 'koishi' {
 const logger = new Logger('test')
 
 export class TestService extends Service {
+  static using = ['__send__']
 
   _findPlugin(name: string, parent: Context): [string, Context, Context] {
     if (!parent) return
@@ -35,8 +38,8 @@ export class TestService extends Service {
 
     const selfSendPrefixLength = config.selfSendPrefix?.length
 
+    // ctx.plugin(Foo)
     console.log('Test plugin initializing.')
-
 
     ctx.middleware(async (session, next) => {
       if (session.content === 'help') return
@@ -66,15 +69,18 @@ export class TestService extends Service {
       }
     })
 
-    const forwardToMe = (session: Session, msg: Element.Fragment) => {
-      session.bot.sendPrivateMessage(config.forwardUserId || session.selfId, msg)
+    const forwardToMe = (session: Session, content: Element.Fragment) => {
+      for (const { platform, channelId } of config.forwardTargets) {
+        if (session.platform == platform && session.channelId === channelId) continue
+        this.ctx.sendMessage(platform, channelId, content)
+      }
     }
 
     // Handle tome message
     ctx.private().middleware((session, next) => {
       if (session.userId == session.selfId) return next()
       return next((next) => {
-        forwardToMe(session, h('', `From ${session.author.username}(${session.author.userId})\n`, session.elements))
+        forwardToMe(session, h('', `From ${session.author.username}(${session.author.userId})\n`, ...session.elements))
       })
     })
 
@@ -88,7 +94,9 @@ export class TestService extends Service {
         }
       }
       if (flag) return next((next) => {
-        forwardToMe(session, h('', `From ${session.author.nickname}(${session.author.userId}) from ${session.guildName}(${session.guildId}):`, session.elements))
+        forwardToMe(session, h('',
+          `From ${session.author.nickname}(${session.author.userId}) from ${session.channelName||session.guildName}(${session.channelId||session.guildId}):`,
+          ...session.elements))
       })
       else return next()
     })
@@ -148,8 +156,13 @@ export class TestService extends Service {
 }
 
 export namespace TestService {
+  export interface ForwardTarget {
+    platform: string
+    channelId: string
+  }
+
   export interface Config {
-    forwardUserId?: string
+    forwardTargets?: ForwardTarget[],
     selfSendPrefix?: string
     infoAllSessions: 'off' | 'middleware' | 'event'
     testMode: 'all' | 'undefined-userid'
@@ -157,7 +170,10 @@ export namespace TestService {
   }
 
   export let Config: Schema<Config> = Schema.object({
-    forwardUserId: Schema.string(),
+    forwardTargets: Schema.array(Schema.object({
+      platform: Schema.string(),
+      channelId: Schema.string(),
+    })).role('table'),
     selfSendPrefix: Schema.string().default('//'),
     infoAllSessions: Schema.union(['off', 'middleware', 'event'] as const).default('off'),
     testMode: Schema.union(['all', 'undefined-userid'] as const).default('all'),
