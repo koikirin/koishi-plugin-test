@@ -48,9 +48,6 @@ export class TestService extends Service {
 
     // Handle self message
     ctx.guild().on('message', (session) => {
-      if (config.infoAllSessions === 'event') {
-        logger.info(session)
-      }
       if (session.userId === session.bot.selfId && selfSendPrefixLength &&
         session.content.slice(0, selfSendPrefixLength) === config.selfSendPrefix) {
         let newSession = session.bot.session(session);
@@ -102,9 +99,6 @@ export class TestService extends Service {
     })
 
     if (config.infoAllSessions === 'middleware') {
-      // ctx.on('guild-member/ban', (session) => {
-      //   ctx.logger('test').info(session.onebot?.sub_type)
-      // })
       ctx.middleware((session, next) => {
         if (config.testMode === 'all' || !session.userId)
           logger.info(session)
@@ -112,6 +106,12 @@ export class TestService extends Service {
       }, true)
     }
 
+    if (config.infoAllSessions === 'message') {
+      ctx.on('message', (session) => {
+        if (config.testMode === 'all' || !session.userId)
+          logger.info(session)
+      }, true)
+    }
 
     if (config.fixChannelName) {
       ctx.guild().middleware(async (session, next) => {
@@ -125,6 +125,14 @@ export class TestService extends Service {
         
       }, true)
     }
+
+    ctx.command('test.image')
+      .option('url', '-u <url:string>', { fallback: 'https://koishi.chat/logo.png' })
+      .option('mime', '-m <mime:string>', { fallback: 'image/png' })
+      .action(async ({session, options, args}) => {
+        console.log(session.author.roles)
+      return await ctx.http.axios(options.url, { method: 'GET', responseType: 'arraybuffer' }).then(resp => Buffer.from(resp.data, 'binary')).then(b => h.image(b, options.mime))
+    })
 
     ctx.command('test.real <arg:number>', {checkUnknown: true, checkArgCount: true})
       .option('-w', 'www')
@@ -164,7 +172,7 @@ export namespace TestService {
   export interface Config {
     forwardTargets?: ForwardTarget[],
     selfSendPrefix?: string
-    infoAllSessions: 'off' | 'middleware' | 'event'
+    infoAllSessions: 'off' | 'message' | 'middleware'
     testMode: 'all' | 'undefined-userid'
     fixChannelName: boolean
   }
@@ -175,7 +183,7 @@ export namespace TestService {
       channelId: Schema.string(),
     })).role('table'),
     selfSendPrefix: Schema.string().default('//'),
-    infoAllSessions: Schema.union(['off', 'middleware', 'event'] as const).default('off'),
+    infoAllSessions: Schema.union(['off', 'message', 'middleware'] as const).default('off'),
     testMode: Schema.union(['all', 'undefined-userid'] as const).default('all'),
     fixChannelName: Schema.boolean().default(false),
   })
