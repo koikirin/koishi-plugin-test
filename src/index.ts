@@ -42,7 +42,7 @@ export class TestService extends Service {
     console.log('Test plugin initializing.')
 
     ctx.middleware(async (session, next) => {
-      if (session.content === 'help') return
+      if (session.content.trim() === 'help') return
       return next()
     }, true)
 
@@ -69,7 +69,7 @@ export class TestService extends Service {
     const forwardToMe = (session: Session, content: Element.Fragment) => {
       for (const { platform, channelId } of config.forwardTargets) {
         if (session.platform == platform && session.channelId === channelId) continue
-        this.ctx.sendMessage(platform, channelId, content)
+        this.ctx.sendMessage({ platform, channelId }, content)
       }
     }
 
