@@ -1,14 +1,13 @@
-import { } from '@hieuzest/koishi-plugin-analytics'
 import { } from '@hieuzest/koishi-plugin-send'
-import { Context, Dict, Element, Loader, Logger, Schema, Service, Session, User, deepEqual, h } from 'koishi'
-// import { Foo } from './foo'
+import { } from '@koishijs/plugin-market'
+import { Context, Dict, Element, Loader, Logger, Schema, Service, Session, User, deepEqual, h, z } from 'koishi'
+import { } from '@hieuzest/koishi-plugin-adapter-red'
 
 declare module 'koishi' {
   interface Context {
     test: TestService
     // foo: Foo
   }
-
 }
 
 const logger = new Logger('test')
@@ -21,16 +20,30 @@ export class TestService extends Service {
     const reg = parent.scope[Loader.kRecord]
     if (!reg) return
     for (const key of Object.getOwnPropertyNames(reg)) {
-      const i1 = -1, i2 = key.indexOf(':')
-      const mkey = key.slice(i1 === -1 ? 0 : i1+1, i2 === i1 ? key.length: i2)
+      const i1 = key.indexOf('/'), i2 = key.indexOf(':')
+      const mkey = key.slice(0, i2 === i1 ? key.length : i2)
       if (mkey === name) return [key, parent, reg[key]?.ctx]
       const res = this._findPlugin(name, reg[key]?.ctx)
       if (res) return res
     }
   }
 
-  findPlugin(name: string) {
-    return this._findPlugin(name, this.ctx.loader.entry)
+  _findPluginC(plugin: Context, parent: Context): [string, Context, Context] {
+    if (!parent) return
+    const reg = parent.scope[Loader.kRecord]
+    if (!reg) return
+    for (const key of Object.getOwnPropertyNames(reg)) {
+      if (reg[key]?.ctx === plugin) return [key, parent, reg[key]?.ctx]
+      const res = this._findPluginC(plugin, reg[key]?.ctx)
+      if (res) return res
+    }
+  }
+
+  findPlugin(plugin: string | Context) {
+    if (typeof plugin === 'string')
+      return this._findPlugin(plugin, this.ctx.loader.entry)
+    else
+      return this._findPluginC(plugin, this.ctx.loader.entry)
   }
 
   constructor(ctx: Context, private config: TestService.Config) {
@@ -92,7 +105,7 @@ export class TestService extends Service {
       }
       if (flag) return next((next) => {
         forwardToMe(session, h('',
-          `From ${session.author.nickname}(${session.author.userId}) from ${session.channelName||session.guildName}(${session.channelId||session.guildId}):`,
+          `From ${session.author.nickname}(${session.author.userId}) from ${session.channelName || session.guildName}(${session.channelId || session.guildId}):`,
           ...session.elements))
       })
       else return next()
@@ -116,50 +129,46 @@ export class TestService extends Service {
     if (config.fixChannelName) {
       ctx.guild().middleware(async (session, next) => {
         const channel = await session.getChannel()
-        if (!channel.name) {
-          console.log(session.channelName, session.guildName, session.username)
+        // if (!channel.name) {
+        //   console.log(session.channelName, session.guildName, session.username)
 
-        }
+        // }
         // channel
         return next()
-        
+
       }, true)
     }
 
     ctx.command('test.image')
       .option('url', '-u <url:string>', { fallback: 'https://koishi.chat/logo.png' })
       .option('mime', '-m <mime:string>', { fallback: 'image/png' })
-      .action(async ({session, options, args}) => {
+      .action(async ({ session, options, args }) => {
         console.log(session.author.roles)
-      return await ctx.http.axios(options.url, { method: 'GET', responseType: 'arraybuffer' }).then(resp => Buffer.from(resp.data, 'binary')).then(b => h.image(b, options.mime))
-    })
+        return await ctx.http.axios(options.url, { method: 'GET', responseType: 'arraybuffer' }).then(resp => Buffer.from(resp.data, 'binary')).then(b => h.image(b, options.mime))
+      })
 
-    ctx.command('test.real <arg:number>', {checkUnknown: true, checkArgCount: true})
+    ctx.command('test.real <arg:number>', { checkUnknown: true, checkArgCount: true })
       .option('-w', 'www')
-      .action(({session, options, args}) => {
-      return JSON.stringify({options, args})
-    })
-
+      .action(({ session, options, args }) => {
+        return JSON.stringify({ options, args })
+      })
 
     ctx.command('test.rel').userFields(['locales']).action(async (argv) => {
       console.log(argv.session.text('general.name'), argv.session.user.locales)
       return await argv.session.execute('test.real')
-      return '.......'
     })
 
     ctx.command('test.reload <plugin:string>').action(async (argv, name) => {
-      const [key, parent, plugin] = this.findPlugin(name)??[]
+      const [key, parent, plugin] = this.findPlugin(name) ?? []
       if (!key) return 'Not found'
       ctx.loader.unloadPlugin(parent, key)
       await ctx.loader.reloadPlugin(parent, key, parent.config[key])
-      
       return 'Success ' + key
     })
 
-    // ctx.on('send', (session) => {
-    //   // console.log('before-execute', argv)
-    //   console.log(session)
-    // })
+    ctx.command('test.logger <label:string> <level:number>').action(async (argv, label, level) => {
+      new Logger(label).level = level
+    })
   }
 }
 
