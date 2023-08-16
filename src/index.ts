@@ -1,6 +1,6 @@
 import { } from '@hieuzest/koishi-plugin-send'
 import { } from '@koishijs/plugin-market'
-import { Context, Dict, Element, Loader, Logger, Schema, Service, Session, User, deepEqual, h, z } from 'koishi'
+import { Context, Element, h, Loader, Logger, noop, Schema, Service, Session } from 'koishi'
 import { } from '@hieuzest/koishi-plugin-adapter-red'
 
 declare module 'koishi' {
@@ -40,10 +40,7 @@ export class TestService extends Service {
   }
 
   findPlugin(plugin: string | Context) {
-    if (typeof plugin === 'string')
-      return this._findPlugin(plugin, this.ctx.loader.entry)
-    else
-      return this._findPluginC(plugin, this.ctx.loader.entry)
+    if (typeof plugin === 'string') { return this._findPlugin(plugin, this.ctx.loader.entry) } else { return this._findPluginC(plugin, this.ctx.loader.entry) }
   }
 
   constructor(ctx: Context, private config: TestService.Config) {
@@ -55,15 +52,15 @@ export class TestService extends Service {
     console.log('Test plugin initializing.')
 
     ctx.middleware(async (session, next) => {
-      if (session.content.trim() === 'help') return
+      if (session.content.trim().toLowerCase() === 'help') return
       return next()
     }, true)
 
     // Handle self message
     ctx.guild().on('message', (session) => {
-      if (session.userId === session.bot.selfId && selfSendPrefixLength &&
-        session.content.slice(0, selfSendPrefixLength) === config.selfSendPrefix) {
-        let newSession = session.bot.session(session);
+      if (session.userId === session.bot.selfId && selfSendPrefixLength
+        && session.content.slice(0, selfSendPrefixLength) === config.selfSendPrefix) {
+        const newSession = session.bot.session(session)
         newSession.userId = '@self'
         newSession.content = newSession.content.slice(selfSendPrefixLength)
         session.bot.dispatch(newSession)
@@ -72,7 +69,7 @@ export class TestService extends Service {
 
     ctx.before('send', (session) => {
       if (selfSendPrefixLength && session.content.slice(0, selfSendPrefixLength) === config.selfSendPrefix) {
-        let newSession = session.bot.session(session);
+        const newSession = session.bot.session(session)
         newSession.userId = '@self'
         newSession.content = newSession.content.slice(selfSendPrefixLength)
         session.bot.dispatch(newSession)
@@ -81,14 +78,14 @@ export class TestService extends Service {
 
     const forwardToMe = (session: Session, content: Element.Fragment) => {
       for (const { platform, channelId } of config.forwardTargets) {
-        if (session.platform == platform && session.channelId === channelId) continue
+        if (session.platform === platform && session.channelId === channelId) continue
         this.ctx.sendMessage({ platform, channelId }, content)
       }
     }
 
     // Handle tome message
     ctx.private().middleware((session, next) => {
-      if (session.userId == session.selfId) return next()
+      if (session.userId === session.selfId) return next()
       return next((next) => {
         forwardToMe(session, h('', `From ${session.author.username}(${session.author.userId})\n`, ...session.elements))
       })
@@ -97,54 +94,58 @@ export class TestService extends Service {
     ctx.guild().middleware((session, next) => {
       let flag = false
       if (session.quote && session.quote.userId === session.selfId) flag = true
-      else for (const ele of session.elements) {
-        if (ele.type == 'at' && ele.attrs.id === session.selfId) {
-          flag = true
-          break
+      else {
+        for (const ele of session.elements) {
+          if (ele.type === 'at' && ele.attrs.id === session.selfId) {
+            flag = true
+            break
+          }
         }
       }
-      if (flag) return next((next) => {
-        forwardToMe(session, h('',
-          `From ${session.author.nickname}(${session.author.userId}) from ${session.channelName || session.guildName}(${session.channelId || session.guildId}):`,
-          ...session.elements))
-      })
-      else return next()
+      if (flag) {
+        return next((next) => {
+          forwardToMe(session, h('',
+            `From ${session.author.nickname}(${session.author.userId}) `
+            + `from ${session.channelName || session.guildName}(${session.channelId || session.guildId}):`,
+            ...session.elements))
+        })
+      } else return next()
     })
 
     if (config.infoAllSessions === 'middleware') {
       ctx.middleware((session, next) => {
-        if (config.testMode === 'all' || !session.userId)
-          logger.info(session)
+        if (config.testMode === 'all' || !session.userId) { logger.info(session) }
         return next()
       }, true)
     }
 
     if (config.infoAllSessions === 'message') {
       ctx.on('message', (session) => {
-        if (config.testMode === 'all' || !session.userId)
-          logger.info(session)
+        if (config.testMode === 'all' || !session.userId) { logger.info(session) }
       }, true)
     }
 
     if (config.fixChannelName) {
       ctx.guild().middleware(async (session, next) => {
-        const channel = await session.getChannel()
+        // const channel = await session.getChannel()
         // if (!channel.name) {
         //   console.log(session.channelName, session.guildName, session.username)
 
         // }
         // channel
         return next()
-
       }, true)
     }
+
+    ctx.command('test', { authority: 5 }).action(noop)
 
     ctx.command('test.image')
       .option('url', '-u <url:string>', { fallback: 'https://koishi.chat/logo.png' })
       .option('mime', '-m <mime:string>', { fallback: 'image/png' })
       .action(async ({ session, options, args }) => {
         console.log(session.author.roles)
-        return await ctx.http.axios(options.url, { method: 'GET', responseType: 'arraybuffer' }).then(resp => Buffer.from(resp.data, 'binary')).then(b => h.image(b, options.mime))
+        return await ctx.http.axios(options.url, { method: 'GET', responseType: 'arraybuffer' })
+          .then(resp => Buffer.from(resp.data, 'binary')).then(b => h.image(b, options.mime))
       })
 
     ctx.command('test.real <arg:number>', { checkUnknown: true, checkArgCount: true })
@@ -159,7 +160,7 @@ export class TestService extends Service {
     })
 
     ctx.command('test.reload <plugin:string>').action(async (argv, name) => {
-      const [key, parent, plugin] = this.findPlugin(name) ?? []
+      const [key, parent] = this.findPlugin(name) ?? []
       if (!key) return 'Not found'
       ctx.loader.unloadPlugin(parent, key)
       await ctx.loader.reloadPlugin(parent, key, parent.config[key])
@@ -179,14 +180,14 @@ export namespace TestService {
   }
 
   export interface Config {
-    forwardTargets?: ForwardTarget[],
+    forwardTargets?: ForwardTarget[]
     selfSendPrefix?: string
     infoAllSessions: 'off' | 'message' | 'middleware'
     testMode: 'all' | 'undefined-userid'
     fixChannelName: boolean
   }
 
-  export let Config: Schema<Config> = Schema.object({
+  export const Config: Schema<Config> = Schema.object({
     forwardTargets: Schema.array(Schema.object({
       platform: Schema.string(),
       channelId: Schema.string(),
