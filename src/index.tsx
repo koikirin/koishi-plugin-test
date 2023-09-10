@@ -77,28 +77,13 @@ export class TestService extends Service {
     //   return true
     // })
 
-    ctx.on('guild-member-added', session => {
-      console.log(session)
-    })
-
-    ctx.guild().middleware((session, next) => {
-      console.log(session.elements)
-      return next()
-    })
-
     ctx.command('hrecall <msgId:string>').action(({ session }, msgId) => {
       session.red.recall([msgId], 2, session.channelId)
     })
 
-    ctx.guild().middleware(async (session, next) => {
-      // if (!session.red.roleType) {
-      logger.info('[test role] %s:%s %s', session.channelId, session.userId, session.red?.roleType, session.author)
-      // }
-      return next()
-    }, true)
-
     ctx.middleware(async (session, next) => {
       if (session.content.trim().toLowerCase() === 'help') return
+      if (session.userId !== session.selfId && session.userId !== '@self' && config.blockChannels.includes(session.cid)) return
       return next()
     }, true)
 
@@ -230,19 +215,9 @@ export class TestService extends Service {
         return (await ctx.permissions.test(permissions, session as any)) ? 'Success' : 'Fail'
       })
 
-    ctx.command('testt.foo', { authority: null }).action(_ => 'a')
-    ctx.command('testt.bar')
-    console.log(ctx.$commander.get('testt').config)
-    console.log(ctx.$commander.get('testt.foo').config)
-    console.log(ctx.$commander.get('testt.bar').config)
-
     ctx.command('test.logger <label:string> <level:number>').action(async (argv, label, level) => {
       new Logger(label).level = level
     })
-
-    // ctx.on('internal/service', (name, oldValue) => {
-    //   console.log('internal/service', name, !oldValue ? 'enable' : 'disable')
-    // })
   }
 }
 
@@ -258,6 +233,7 @@ export namespace TestService {
     infoAllSessions: 'off' | 'message' | 'middleware'
     testMode: 'all' | 'undefined-userid'
     fixChannelName: boolean
+    blockChannels: string[]
   }
 
   export const Config: Schema<Config> = Schema.object({
@@ -269,6 +245,7 @@ export namespace TestService {
     infoAllSessions: Schema.union(['off', 'message', 'middleware'] as const).default('off'),
     testMode: Schema.union(['all', 'undefined-userid'] as const).default('all'),
     fixChannelName: Schema.boolean().default(false),
+    blockChannels: Schema.array(String).default([]),
   })
 }
 
