@@ -1,24 +1,12 @@
 import { } from '@hieuzest/koishi-plugin-send'
-import { } from '@koishijs/plugin-market'
 import { Argv, Context, Element, h, Loader, Logger, noop, Schema, Service, Session } from 'koishi'
 import { } from '@hieuzest/koishi-plugin-adapter-red'
-import { } from '@hieuzest/koishi-plugin-permissions'
-// import { resolve } from 'path'
 
 declare module 'koishi' {
   interface Context {
     test: TestService
     // foo: Foo
   }
-
-  interface Tables {
-    'test/f': TestF
-  }
-}
-
-interface TestF {
-  name: string
-  b: boolean
 }
 
 const logger = new Logger('test')
@@ -61,21 +49,6 @@ export class TestService extends Service {
 
     // ctx.plugin(Foo)
     console.log('Test plugin initializing.')
-    ctx.model.extend('test/f', {
-      name: 'string',
-      b: 'boolean',
-    }, {
-      // autoInc: true,
-      primary: ['name'],
-    })
-
-    // ctx.database.create('test/f', { name: '1', b: true })
-    // ctx.database.create('test/f', { name: '2', b: false })
-
-    // ctx.before('send', async (session, options) => {
-    //   console.log(session.content)
-    //   return true
-    // })
 
     ctx.command('hrecall <msgId:string>').action(({ session }, msgId) => {
       session.red.recall([msgId], 2, session.channelId)
@@ -91,7 +64,7 @@ export class TestService extends Service {
     ctx.guild().on('message', (session) => {
       if (session.userId === session.bot.selfId && selfSendPrefixLength
         && session.content.slice(0, selfSendPrefixLength) === config.selfSendPrefix) {
-        const newSession = session.bot.session(session)
+        const newSession = session.bot.session(session.event)
         newSession.userId = '@self'
         newSession.content = newSession.content.slice(selfSendPrefixLength)
         session.bot.dispatch(newSession)
@@ -100,7 +73,7 @@ export class TestService extends Service {
 
     ctx.before('send', (session) => {
       if (selfSendPrefixLength && session.content.slice(0, selfSendPrefixLength) === config.selfSendPrefix) {
-        const newSession = session.bot.session(session)
+        const newSession = session.bot.session(session.event)
         newSession.userId = '@self'
         newSession.content = newSession.content.slice(selfSendPrefixLength)
         session.bot.dispatch(newSession)
@@ -124,7 +97,7 @@ export class TestService extends Service {
 
     ctx.guild().middleware((session, next) => {
       let flag = false
-      if (session.quote && session.quote.userId === session.selfId) flag = true
+      if (session.quote && session.quote.user.id === session.selfId) flag = true
       else {
         for (const ele of session.elements) {
           if (ele.type === 'at' && ele.attrs.id === session.selfId) {
@@ -137,7 +110,7 @@ export class TestService extends Service {
         return next((next) => {
           forwardToMe(session, h('',
             `From ${session.author.nickname}(${session.author.userId}) `
-            + `from ${session.channelName || session.guildName}(${session.channelId || session.guildId}):`,
+            + `from ${session.event.channel?.name || session.event.guild?.name}(${session.channelId || session.guildId}):`,
             ...session.elements))
         })
       } else return next()
@@ -170,7 +143,7 @@ export class TestService extends Service {
 
     ctx.permissions.inherit('custom.test.admin', 'custom.test.operator')
 
-    ctx.command('test', { permissions: [] }).action(noop)
+    ctx.command('test', { authority: 5 }).action(noop)
 
     ctx.command('test.image', { permissions: ['custom.test.operator'] })
       .option('url', '-u <url:string>', { fallback: 'https://koishi.chat/logo.png' })
