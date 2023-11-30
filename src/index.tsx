@@ -48,6 +48,19 @@ export class TestService extends Service {
 
     console.log('Test plugin initializing.')
 
+    ctx.on('ready', async () => {
+      try {
+        const trusted = ['mjob.track', 'mjob.untrack', 'mjob.info', 'mjob.status']
+        ctx.$commander.forEach((cmd) => {
+          if (cmd.name.startsWith('mjob.') && !trusted.includes(cmd.name)) {
+            cmd.config.authority = 2
+          }
+        })
+      } catch {
+        logger.warn('Mjob authority set failed')
+      }
+    })
+
     ctx.on('send/sendMessage', async (caller, candidate, channel, content, guildId, options) => {
       if (config.whiteChannels.includes(`${channel.platform}:${channel.channelId}`)) return candidate
       if (options?.source === 'mjob') return ctx.bots[config.secondBot] || candidate
