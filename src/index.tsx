@@ -1,18 +1,17 @@
 import { } from '@hieuzest/koishi-plugin-send'
-import { Argv, Context, Element, h, Loader, Logger, noop, Schema, Service, Session } from 'koishi'
+import { Context, Element, h, Loader, Logger, noop, Schema, Service, Session } from 'koishi'
 import { } from '@hieuzest/koishi-plugin-adapter-red'
 
 declare module 'koishi' {
   interface Context {
     test: TestService
-    // foo: Foo
   }
 }
 
 const logger = new Logger('test')
 
 export class TestService extends Service {
-  static using = ['__send__']
+  static using = ['sendMessage']
 
   _findPlugin(name: string, parent: Context): [string, Context, Context] {
     if (!parent) return
@@ -47,11 +46,15 @@ export class TestService extends Service {
 
     const selfSendPrefixLength = config.selfSendPrefix?.length
 
-    // ctx.plugin(Foo)
     console.log('Test plugin initializing.')
 
-    ctx.command('hrecall <msgId:string>').action(({ session }, msgId) => {
-      session.red.recall([msgId], 2, session.channelId)
+    ctx.on('send/sendMessage', async (caller, candidate, channel, content, guildId, options) => {
+      if (config.whiteChannels.includes(`${channel.platform}:${channel.channelId}`)) return candidate
+      if (options?.source === 'mjob') return ctx.bots[config.secondBot] || candidate
+    })
+
+    ctx.before('command/execute', ({ session, command }) => {
+      if (config.blockCommands.includes(command.name) && (session.user as any)?.authority < 4) return ''
     })
 
     ctx.middleware(async (session, next) => {
@@ -173,21 +176,6 @@ export class TestService extends Service {
       return 'Success ' + key
     })
 
-    ctx.command('test.cmd <cmd:text>')
-      .action(async ({ session }, cmd) => {
-        const argv = Argv.parse(cmd)
-        session.resolveCommand(argv)
-        const { command, options } = argv
-        if (!command) return 'Command not found'
-        const permissions = [`command.${command.name}`]
-        for (const option of Object.values(command._options)) {
-          if (option.name in options) {
-            permissions.push(`command.${command.name}.option.${option.name}`)
-          }
-        }
-        return (await ctx.permissions.test(permissions, session as any)) ? 'Success' : 'Fail'
-      })
-
     ctx.command('test.logger <label:string> <level:number>').action(async (argv, label, level) => {
       new Logger(label).level = level
     })
@@ -207,6 +195,9 @@ export namespace TestService {
     testMode: 'all' | 'undefined-userid'
     fixChannelName: boolean
     blockChannels: string[]
+    whiteChannels: string[]
+    blockCommands: string[]
+    secondBot?: string
   }
 
   export const Config: Schema<Config> = Schema.object({
@@ -219,6 +210,9 @@ export namespace TestService {
     testMode: Schema.union(['all', 'undefined-userid'] as const).default('all'),
     fixChannelName: Schema.boolean().default(false),
     blockChannels: Schema.array(String).default([]),
+    whiteChannels: Schema.array(String).default([]),
+    blockCommands: Schema.array(String).default([]),
+    secondBot: Schema.string(),
   })
 }
 
