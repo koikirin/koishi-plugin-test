@@ -11,8 +11,6 @@ declare module 'koishi' {
 const logger = new Logger('test')
 
 export class TestService extends Service {
-  static using = ['sendMessage']
-
   _findPlugin(name: string, parent: Context): [string, Context, Context] {
     if (!parent) return
     const reg = parent.scope[Loader.kRecord]
@@ -50,23 +48,30 @@ export class TestService extends Service {
 
     ctx.on('ready', async () => {
       try {
-        const trusted = ['mjob.track', 'mjob.untrack', 'mjob.info', 'mjob.status']
-        ctx.$commander.forEach((cmd) => {
-          if (cmd.name.startsWith('mjob.') && !trusted.includes(cmd.name)) {
-            cmd.config.authority = 2
+        const trusted = [
+          'command.mjob.track',
+          'command.mjob.untrack',
+          'command.mjob.info',
+          'command.mjob.status',
+        ]
+        ctx.permissions.list().forEach((name) => {
+          if (name.startsWith('command.mjob.') && !trusted.includes(name)) {
+            ctx.permissions._inherits.unlink(name, 'authority.1', true)
+            ctx.permissions.inherit('authority.2', name, true)
           }
         })
       } catch {
         logger.warn('Mjob authority set failed')
       }
-    })
 
-    ctx.on('send/sendMessage', async (caller, candidate, channel, content, guildId, options) => {
-      if (config.whiteChannels.includes(`${channel.platform}:${channel.channelId}`)) return candidate
-      if (options?.source === 'mjob') return ctx.bots[config.secondBot] || candidate
+      ctx.on('send/sendMessage', async (caller, candidate, channel, content, guildId, options) => {
+        if (config.whiteChannels.includes(`${channel.platform}:${channel.channelId}`)) return candidate
+        if (options?.source === 'mjob') return ctx.bots[config.secondBot] || candidate
+      })
     })
 
     ctx.before('command/execute', ({ session, command }) => {
+      if (session.elements?.[0]?.type === 'at' && session.elements?.[0]?.attrs?.id !== session.selfId) return ''
       if (config.blockCommands.includes(command.name) && (session.user as any)?.authority < 4) return ''
     })
 
@@ -78,6 +83,7 @@ export class TestService extends Service {
 
     // Handle self message
     ctx.guild().on('message', (session) => {
+      if (config.sids.length && !config.sids.includes(session.sid)) return
       if (session.userId === session.bot.selfId && selfSendPrefixLength
         && session.content.slice(0, selfSendPrefixLength) === config.selfSendPrefix) {
         const newSession = session.bot.session(session.event)
@@ -88,6 +94,7 @@ export class TestService extends Service {
     })
 
     ctx.before('send', (session) => {
+      if (config.sids.length && !config.sids.includes(session.sid)) return
       if (selfSendPrefixLength && session.content.slice(0, selfSendPrefixLength) === config.selfSendPrefix) {
         const newSession = session.bot.session(session.event)
         newSession.userId = '@self'
@@ -97,6 +104,7 @@ export class TestService extends Service {
     })
 
     const forwardToMe = (session: Session, content: Element.Fragment) => {
+      if (config.sids.length && !config.sids.includes(session.sid)) return
       for (const { platform, channelId } of config.forwardTargets) {
         if (session.platform === platform && session.channelId === channelId) continue
         this.ctx.sendMessage({ platform, channelId }, content)
@@ -202,6 +210,7 @@ export namespace TestService {
   }
 
   export interface Config {
+    sids: string[]
     forwardTargets?: ForwardTarget[]
     selfSendPrefix?: string
     infoAllSessions: 'off' | 'message' | 'middleware'
@@ -214,6 +223,7 @@ export namespace TestService {
   }
 
   export const Config: Schema<Config> = Schema.object({
+    sids: Schema.array(String).default([]),
     forwardTargets: Schema.array(Schema.object({
       platform: Schema.string(),
       channelId: Schema.string(),
