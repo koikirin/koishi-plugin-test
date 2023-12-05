@@ -11,6 +11,8 @@ declare module 'koishi' {
 const logger = new Logger('test')
 
 export class TestService extends Service {
+  static inject = ['sendMessage']
+
   _findPlugin(name: string, parent: Context): [string, Context, Context] {
     if (!parent) return
     const reg = parent.scope[Loader.kRecord]
@@ -168,6 +170,10 @@ export class TestService extends Service {
     ctx.permissions.inherit('custom.test.admin', 'custom.test.operator')
 
     ctx.command('test', { authority: 5 }).action(noop)
+
+    ctx.command('test.send').action(async ({ session }) => {
+      await ctx.sendMessage(session.cid, 'ok')
+    })
 
     ctx.command('test.image', { permissions: ['custom.test.operator'] })
       .option('url', '-u <url:string>', { fallback: 'https://koishi.chat/logo.png' })
