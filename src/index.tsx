@@ -49,26 +49,10 @@ export class TestService extends Service {
     console.log('Test plugin initializing.')
 
     ctx.on('ready', async () => {
-      try {
-        const trusted = [
-          'command.mjob.track',
-          'command.mjob.untrack',
-          'command.mjob.info',
-          'command.mjob.status',
-        ]
-        ctx.permissions.list().forEach((name) => {
-          if (name.startsWith('command.mjob.') && !trusted.includes(name)) {
-            ctx.permissions._inherits.unlink(name, 'authority.1', true)
-            ctx.permissions.inherit('authority.2', name, true)
-          }
-        })
-      } catch {
-        logger.warn('Mjob authority set failed')
-      }
-
       ctx.on('send/sendMessage', async (caller, candidate, channel, content, guildId, options) => {
         if (config.whiteChannels.includes(`${channel.platform}:${channel.channelId}`)) return candidate
         if (options?.source === 'mjob') return ctx.bots[config.secondBot] || candidate
+        return candidate
       })
     })
 
@@ -78,7 +62,7 @@ export class TestService extends Service {
     })
 
     ctx.middleware(async (session, next) => {
-      if (session.content.trim().toLowerCase() === 'help') return
+      // if (session.content.trim().toLowerCase() === 'help') return
       if (session.userId !== session.selfId && session.userId !== '@self' && config.blockChannels.includes(session.cid)) return
       return next()
     }, true)
@@ -117,13 +101,13 @@ export class TestService extends Service {
     ctx.private().middleware((session, next) => {
       if (session.userId === session.selfId) return next()
       return next((next) => {
-        forwardToMe(session, h('', `From ${session.author.username}(${session.author.userId})\n`, ...session.elements))
+        forwardToMe(session, h('', `From ${session.username}(${session.userId})\n`, ...session.elements))
       })
     })
 
     ctx.guild().middleware((session, next) => {
       let flag = false
-      if (session.quote && session.quote.user.id === session.selfId) flag = true
+      if (session.quote && session.quote.user?.id === session.selfId) flag = true
       else {
         for (const ele of session.elements) {
           if (ele.type === 'at' && ele.attrs.id === session.selfId) {
@@ -135,7 +119,7 @@ export class TestService extends Service {
       if (flag) {
         return next((next) => {
           forwardToMe(session, h('',
-            `From ${session.author.nickname}(${session.author.userId}) `
+            `From ${session.username}(${session.userId}) `
             + `from ${session.event.channel?.name || session.event.guild?.name}(${session.channelId || session.guildId}):`,
             ...session.elements))
         })
@@ -144,6 +128,7 @@ export class TestService extends Service {
 
     if (config.infoAllSessions === 'middleware') {
       ctx.middleware((session, next) => {
+        if (config.infoPlatforms.length && !config.infoPlatforms.includes(session.platform)) return next()
         if (config.testMode === 'all' || !session.userId) { logger.info(session) }
         return next()
       }, true)
@@ -151,6 +136,7 @@ export class TestService extends Service {
 
     if (config.infoAllSessions === 'message') {
       ctx.on('message', (session) => {
+        if (config.infoPlatforms.length && !config.infoPlatforms.includes(session.platform)) return
         if (config.testMode === 'all' || !session.userId) { logger.info(session) }
       }, true)
     }
@@ -220,6 +206,7 @@ export namespace TestService {
     forwardTargets?: ForwardTarget[]
     selfSendPrefix?: string
     infoAllSessions: 'off' | 'message' | 'middleware'
+    infoPlatforms: string[]
     testMode: 'all' | 'undefined-userid'
     fixChannelName: boolean
     blockChannels: string[]
@@ -236,6 +223,7 @@ export namespace TestService {
     })).role('table'),
     selfSendPrefix: Schema.string().default('//'),
     infoAllSessions: Schema.union(['off', 'message', 'middleware'] as const).default('off'),
+    infoPlatforms: Schema.array(String).default([]),
     testMode: Schema.union(['all', 'undefined-userid'] as const).default('all'),
     fixChannelName: Schema.boolean().default(false),
     blockChannels: Schema.array(String).default([]),
