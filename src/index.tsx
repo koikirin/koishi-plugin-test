@@ -1,6 +1,5 @@
 import { } from '@hieuzest/koishi-plugin-send'
 import { Context, Element, h, Loader, Logger, noop, Schema, Service, Session } from 'koishi'
-import { } from '@hieuzest/koishi-plugin-adapter-red'
 
 declare module 'koishi' {
   interface Context {
@@ -11,7 +10,7 @@ declare module 'koishi' {
 const logger = new Logger('test')
 
 export class TestService extends Service {
-  static inject = ['sendMessage']
+  static inject = ['database', 'sendMessage']
 
   _findPlugin(name: string, parent: Context): [string, Context, Context] {
     if (!parent) return
@@ -38,10 +37,14 @@ export class TestService extends Service {
   }
 
   findPlugin(plugin: string | Context) {
-    if (typeof plugin === 'string') { return this._findPlugin(plugin, this.ctx.loader.entry) } else { return this._findPluginC(plugin, this.ctx.loader.entry) }
+    if (typeof plugin === 'string') {
+      return this._findPlugin(plugin, this.ctx.loader.entry)
+    } else {
+      return this._findPluginC(plugin, this.ctx.loader.entry)
+    }
   }
 
-  constructor(ctx: Context, private config: TestService.Config) {
+  constructor(ctx: Context, config: TestService.Config) {
     super(ctx, 'test', true)
 
     const selfSendPrefixLength = config.selfSendPrefix?.length
@@ -62,7 +65,6 @@ export class TestService extends Service {
     })
 
     ctx.middleware(async (session, next) => {
-      // if (session.content.trim().toLowerCase() === 'help') return
       if (session.userId !== session.selfId && session.userId !== '@self' && config.blockChannels.includes(session.cid)) return
       return next()
     }, true)
@@ -129,7 +131,7 @@ export class TestService extends Service {
     if (config.infoAllSessions === 'middleware') {
       ctx.middleware((session, next) => {
         if (config.infoPlatforms.length && !config.infoPlatforms.includes(session.platform)) return next()
-        if (config.testMode === 'all' || !session.userId) { logger.info(session) }
+        if (config.testMode === 'all' || !session.userId) { logger.info(session.toJSON()) }
         return next()
       }, true)
     }
@@ -137,55 +139,39 @@ export class TestService extends Service {
     if (config.infoAllSessions === 'message') {
       ctx.on('message', (session) => {
         if (config.infoPlatforms.length && !config.infoPlatforms.includes(session.platform)) return
-        if (config.testMode === 'all' || !session.userId) { logger.info(session) }
+        if (config.testMode === 'all' || !session.userId) { logger.info(session.toJSON()) }
       }, true)
     }
 
-    if (config.fixChannelName) {
-      ctx.guild().middleware(async (session, next) => {
-        // const channel = await session.getChannel()
-        // if (!channel.name) {
-        //   console.log(session.channelName, session.guildName, session.username)
-
-        // }
-        // channel
-        return next()
-      }, true)
-    }
-
-    ctx.permissions.inherit('custom.test.admin', 'custom.test.operator')
+    ctx.before('send', (session, options) => {
+      if (options.session?.messageId) session.elements.unshift(h('passive', { messageId: options.session.messageId }))
+    })
 
     ctx.command('test', { authority: 5 }).action(noop)
 
-    ctx.command('test.send').action(async ({ session }) => {
-      await ctx.sendMessage(session.cid, 'ok')
-    })
-
-    ctx.command('test.image', { permissions: ['custom.test.operator'] })
+    ctx.command('test.image')
       .option('url', '-u <url:string>', { fallback: 'https://koishi.chat/logo.png' })
       .option('mime', '-m <mime:string>', { fallback: 'image/png' })
       .action(async ({ session, options, args }) => {
-        console.log(session.author.roles)
         return await ctx.http.axios(options.url, { method: 'GET', responseType: 'arraybuffer' })
           .then(resp => Buffer.from(resp.data, 'binary')).then(b => h.image(b, options.mime))
       })
 
-    ctx.command('test.real <arg:number>', { checkUnknown: true, checkArgCount: true, permissions: ['custom.test.operator'] })
+    ctx.command('test.real <arg:number>', { checkUnknown: true, checkArgCount: true })
       .option('-w', 'www')
       .action(({ session, options, args }) => {
         return JSON.stringify({ options, args })
       })
 
-    ctx.command('test.rel', { permissions: ['custom.test.operator'] }).userFields(['locales']).action(async (argv) => {
+    ctx.command('test.rel').userFields(['locales']).action(async (argv) => {
       console.log(argv.session.text('general.name'), argv.session.user.locales)
       return await argv.session.execute('test.real')
     })
 
-    ctx.command('test.reload <plugin:string>', { permissions: ['custom.test.admin'] }).action(async (argv, name) => {
-      const [key, parent] = this.findPlugin(name) ?? []
+    ctx.command('test.reload <plugin:string>').action(async (argv, name) => {
+      const [key,, ctx] = this.findPlugin(name) ?? []
       if (!key) return 'Not found'
-      ctx.loader.unloadPlugin(parent, key)
-      await ctx.loader.reloadPlugin(parent, key, parent.config[key])
+      ctx.scope.update(ctx.scope.config, true)
       return 'Success ' + key
     })
 
@@ -208,7 +194,6 @@ export namespace TestService {
     infoAllSessions: 'off' | 'message' | 'middleware'
     infoPlatforms: string[]
     testMode: 'all' | 'undefined-userid'
-    fixChannelName: boolean
     blockChannels: string[]
     whiteChannels: string[]
     blockCommands: string[]
@@ -225,7 +210,6 @@ export namespace TestService {
     infoAllSessions: Schema.union(['off', 'message', 'middleware'] as const).default('off'),
     infoPlatforms: Schema.array(String).default([]),
     testMode: Schema.union(['all', 'undefined-userid'] as const).default('all'),
-    fixChannelName: Schema.boolean().default(false),
     blockChannels: Schema.array(String).default([]),
     whiteChannels: Schema.array(String).default([]),
     blockCommands: Schema.array(String).default([]),
