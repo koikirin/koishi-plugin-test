@@ -56,10 +56,11 @@ export class TestService extends Service {
       if (config.blockCommands.includes(command.name) && (session.user as any)?.authority < 4) return ''
     })
 
-    ctx.middleware(async (session, next) => {
-      if (session.userId !== session.selfId && session.userId !== '@self' && config.blockChannels.includes(session.cid)) return
-      return next()
-    }, true)
+    ctx.on('attach', (session) => {
+      if (session.argv && config.blockChannels.includes(session.cid)) {
+        session.argv = null
+      }
+    })
 
     // Handle self message
     ctx.guild().on('message', (session) => {
@@ -74,6 +75,7 @@ export class TestService extends Service {
     })
 
     ctx.before('send', (session) => {
+      if (config.blockChannels.includes(session.cid)) return true
       if (config.sids.length && !config.sids.includes(session.sid)) return
       if (selfSendPrefixLength && session.content.slice(0, selfSendPrefixLength) === config.selfSendPrefix) {
         const newSession = session.bot.session(session.event)
