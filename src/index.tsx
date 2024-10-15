@@ -49,15 +49,7 @@ export class TestService extends Service {
 
     const selfSendPrefixLength = config.selfSendPrefix?.length
 
-    console.log('Test plugin initializing.')
-
-    ctx.on('ready', async () => {
-      ctx.on('send/sendMessage', async (caller, candidate, channel, content, guildId, options) => {
-        if (config.whiteChannels.includes(`${channel.platform}:${channel.channelId}`)) return candidate
-        if (options?.source === 'mjob') return ctx.bots[config.secondBot] || candidate
-        return candidate
-      })
-    })
+    ctx.logger.info('Test plugin initializing.')
 
     ctx.before('command/execute', ({ session, command }) => {
       if (session.elements?.[0]?.type === 'at' && session.elements?.[0]?.attrs?.id !== session.selfId) return ''
