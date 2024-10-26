@@ -53,13 +53,8 @@ export class TestService extends Service {
 
     ctx.before('command/execute', ({ session, command }) => {
       if (session.elements?.[0]?.type === 'at' && session.elements?.[0]?.attrs?.id !== session.selfId) return ''
+      if (config.blockChannels.includes(session.cid)) return ''
       if (config.blockCommands.includes(command.name) && (session.user as any)?.authority < 4) return ''
-    })
-
-    ctx.on('attach', (session) => {
-      if (session.argv && config.blockChannels.includes(session.cid)) {
-        session.argv = null
-      }
     })
 
     // Handle self message
