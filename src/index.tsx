@@ -5,6 +5,10 @@ declare module 'koishi' {
   interface Context {
     test: TestService
   }
+
+  interface User {
+    'test/migrate-onebot': number
+  }
 }
 
 const logger = new Logger('test')
@@ -50,6 +54,28 @@ export class TestService extends Service {
     const selfSendPrefixLength = config.selfSendPrefix?.length
 
     ctx.logger.info('Test plugin initializing.')
+
+    ctx.model.extend('user', {
+      'test/migrate-onebot': 'unsigned',
+    })
+
+    ctx.on('before-attach-user', (_, fields) => {
+      fields.add('test/migrate-onebot')
+    })
+
+    ctx.middleware(async (session, next) => {
+      if (session.platform === 'chronocat' && session.user && !session.user['test/migrate-onebot']) {
+        const [account] = await ctx.database.get('binding', { platform: 'onebot', pid: session.userId })
+        if (account) {
+          await ctx.database.set('binding', { platform: 'chronocat', pid: session.userId }, { aid: account.aid })
+          session.user['test/migrate-onebot'] = 1
+        } else {
+          session.user['test/migrate-onebot'] = 2
+        }
+        await session.user.$update()
+      }
+      return next()
+    })
 
     ctx.before('command/execute', ({ session, command }) => {
       if (session.elements?.[0]?.type === 'at' && session.elements?.[0]?.attrs?.id !== session.selfId) return ''
@@ -197,11 +223,11 @@ export namespace TestService {
     })).role('table'),
     selfSendPrefix: Schema.string().default('//'),
     infoAllSessions: Schema.union(['off', 'message', 'middleware'] as const).default('off'),
-    infoPlatforms: Schema.array(String).default([]),
+    infoPlatforms: Schema.array(String).default([]).role('table'),
     testMode: Schema.union(['all', 'undefined-userid'] as const).default('all'),
-    blockChannels: Schema.array(String).default([]),
-    whiteChannels: Schema.array(String).default([]),
-    blockCommands: Schema.array(String).default([]),
+    blockChannels: Schema.array(String).default([]).role('table'),
+    whiteChannels: Schema.array(String).default([]).role('table'),
+    blockCommands: Schema.array(String).default([]).role('table'),
     secondBot: Schema.string(),
   })
 }
