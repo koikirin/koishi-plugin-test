@@ -110,19 +110,20 @@ export class TestService extends Service {
       if (config.sids.length && !config.sids.includes(session.sid)) return
       for (const { platform, channelId } of config.forwardTargets) {
         if (session.platform === platform && session.channelId === channelId) continue
-        this.ctx.sendMessage({ platform, channelId }, content)
+        this.ctx.sendMessage({ platform, channelId }, content).catch(e => logger.error(`Failed to forward message: ${content} but ${e}: ${e?.message}`))
       }
     }
 
     // Handle tome message
     ctx.private().middleware((session, next) => {
-      if (session.userId === session.selfId) return next()
+      if (session.userId === session.selfId || config.blockForwardUsers?.includes(session.userId)) return next()
       return next((next) => {
         forwardToMe(session, h('', `From ${session.username}(${session.userId})\n`, ...session.elements))
       })
     })
 
     ctx.guild().middleware((session, next) => {
+      if (session.userId === session.selfId || config.blockForwardUsers?.includes(session.userId)) return next()
       let flag = false
       if (session.quote && session.quote.user?.id === session.selfId) flag = true
       else {
@@ -180,7 +181,7 @@ export class TestService extends Service {
 
     ctx.command('test.rel').userFields(['locales']).action(async (argv) => {
       console.log(argv.session.text('general.name'), argv.session.user.locales)
-      return await argv.session.execute('test.real')
+      return h.text('aaaa <Sss>')
     })
 
     ctx.command('test.reload <plugin:string>').action(async (argv, name) => {
@@ -205,6 +206,7 @@ export namespace TestService {
   export interface Config {
     sids: string[]
     forwardTargets?: ForwardTarget[]
+    blockForwardUsers?: string[]
     selfSendPrefix?: string
     infoAllSessions: 'off' | 'message' | 'middleware'
     infoPlatforms: string[]
@@ -221,6 +223,7 @@ export namespace TestService {
       platform: Schema.string(),
       channelId: Schema.string(),
     })).role('table'),
+    blockForwardUsers: Schema.array(String).default([]).role('table'),
     selfSendPrefix: Schema.string().default('//'),
     infoAllSessions: Schema.union(['off', 'message', 'middleware'] as const).default('off'),
     infoPlatforms: Schema.array(String).default([]).role('table'),
