@@ -116,14 +116,14 @@ export class TestService extends Service {
 
     // Handle tome message
     ctx.private().middleware((session, next) => {
-      if (session.userId === session.selfId || config.blockForwardUsers?.includes(session.userId)) return next()
+      if (session.userId === session.selfId || config.blockForwardUsers?.includes(session.uid)) return next()
       return next((next) => {
         forwardToMe(session, h('', `From ${session.username}(${session.userId})\n`, ...session.elements))
       })
     })
 
     ctx.guild().middleware((session, next) => {
-      if (session.userId === session.selfId || config.blockForwardUsers?.includes(session.userId)) return next()
+      if (session.userId === session.selfId || config.blockForwardUsers?.includes(session.uid)) return next()
       let flag = false
       if (session.quote && session.quote.user?.id === session.selfId) flag = true
       else {
