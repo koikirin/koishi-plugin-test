@@ -1,20 +1,8 @@
 {
+  "extends": "@hieuzest/koishi-buildtools/tsconfig",
   "compilerOptions": {
     "rootDir": "src",
     "outDir": "lib",
-    "target": "ESNext",
-    "module": "ESNext",
-    "declaration": true,
-    "composite": true,
-    "incremental": true,
-    "skipLibCheck": true,
-    "esModuleInterop": true,
-    "moduleResolution": "bundler",
-    "jsx": "react-jsx",
-    "jsxImportSource": "@satorijs/element",
-    "types": [
-      "node"
-    ],
   },
   "include": [
     "src",
