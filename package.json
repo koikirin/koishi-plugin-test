@@ -1,7 +1,7 @@
 {
   "name": "@hieuzest/koishi-plugin-test",
   "description": "",
-  "version": "1.11.4",
+  "version": "1.11.11",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [
@@ -14,6 +14,10 @@
     "koishi",
     "plugin"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/koikirin/koishi-plugin-test.git"
+  },
   "peerDependencies": {
     "koishi": "^4.16.1"
   },
