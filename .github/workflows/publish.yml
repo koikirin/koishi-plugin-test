@@ -2,12 +2,15 @@ name: Publish
 
 on:
   push:
+    braches:
+      - main
+      - master
     tags:
       - 'v*'
 
 jobs:
-  publish_tag:
-    uses: koikirin/buildplate/.github/workflows/publish_tag.buildplate.yml@v1
-
   publish_npm:
     uses: koikirin/buildplate/.github/workflows/publish_npm.buildplate.yml@v1
+
+  publish_tag:
+    uses: koikirin/buildplate/.github/workflows/publish_tag.buildplate.yml@v1
