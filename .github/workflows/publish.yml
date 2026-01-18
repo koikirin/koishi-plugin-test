@@ -2,7 +2,7 @@ name: Publish
 
 on:
   push:
-    braches:
+    branches:
       - main
       - master
     tags:

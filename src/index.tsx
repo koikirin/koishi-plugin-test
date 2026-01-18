@@ -64,64 +64,6 @@ export class TestService extends Service {
       return `> ${session.resolve(config.testBool)}`
     })
 
-    ctx.inject(['mahjong', 'mahjong.majsoul'], (ctx) => {
-      ctx.logger.info('Test plugin initializing mahjong commands.')
-      ctx.platform('lark').command('zhulu')
-        .option('cid', '-c <cid:string>', { fallback: 23369782 })
-        .option('teamMaxGame', '-T <teamMaxGame:number>', { fallback: 100 })
-        .option('teamMinGame', '-t <teamMinGame:number>', { fallback: 8 })
-        .option('playerMaxGame', '-P <playerMaxGame:number>', { fallback: 6 })
-        .option('playerMinGame', '-i <playerMinGame:number>', { fallback: 1 })
-        .action(async ({ session, options }) => {
-          const teamRank: {
-            team_id: number
-            name: string
-            data: {
-              total_point: number
-              total_game_count: number
-              member_count: number
-            }
-            rank: number
-            err?: string[]
-          }[] = await ctx.mahjong.majsoul.execute('fetchContestTeamRank', { unique_id: options.cid }).then(x => x.rank)
-          const playerRank: {
-            account_id: number
-            nickname: string
-            data: {
-              total_game_count: number
-            }
-            team_name: string
-          }[] = await ctx.mahjong.majsoul.execute('fetchContestTeamPlayerRank', { unique_id: options.cid }).then(x => x.rank)
-          if (!teamRank || !playerRank) return 'No rank data.'
-          teamRank.forEach(team => {
-            team.err = []
-            if (team.data.total_game_count < options.teamMinGame) team.err.push(`总局数不足 ${options.teamMinGame} 局`)
-            if (team.data.total_game_count > options.teamMaxGame) team.err.push(`总局数超过 ${options.teamMaxGame} 局`)
-            const members = playerRank.filter(p => p.team_name === team.name)
-            if (members.length < team.data.member_count) team.err.push(`参赛选手不足`)
-            members.forEach(p => {
-              if (p.data.total_game_count < options.playerMinGame) team.err.push(`选手 ${p.nickname} 总局数不足 ${options.playerMinGame} 局`)
-              if (p.data.total_game_count > options.playerMaxGame) team.err.push(`选手 ${p.nickname} 总局数超过 ${options.playerMaxGame} 局`)
-            })
-          })
-          const valids = teamRank.filter(team => team.err.length === 0)
-          valids.sort((a, b) => a.rank - b.rank)
-          const linesValid = valids.map((team, i) => `| ${i + 1} | ${team.name} | ${team.data.total_point} | ${team.data.total_game_count} | |`)
-          const linesInvalid = teamRank.filter(team => team.err.length > 0)
-            .map(team => `| - | ${team.name} | ${team.data.total_point} | ${team.data.total_game_count} | ${team.err.join('，')} |`)
-
-          return <>
-            <lark:card title="Zhulu scoreboard">
-              <div>
-                <br />|Rank|Team|Point|GameCount|ErrMsg|
-                <br />|-|-|-|-|-|
-                <br />{linesValid.concat(linesInvalid).join('\n')}
-              </div>
-            </lark:card>
-          </>
-        })
-    })
-
     ctx.on('before-attach-user', (_, fields) => {
       fields.add('test/migrate-onebot')
     })
